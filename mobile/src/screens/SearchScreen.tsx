@@ -45,11 +45,17 @@ export function SearchScreen({
     if (!prefill) return;
     setCity(prefill.city);
     setProfession(prefill.profession);
+    void runSearch(false, { city: prefill.city, profession: prefill.profession });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
-  async function runSearch(fresh: boolean) {
-    const trimmed = profession.trim();
-    if (!city.trim()) {
+  async function runSearch(
+    fresh: boolean,
+    override?: { city?: string; profession?: string },
+  ) {
+    const cityValue = (override?.city ?? city).trim();
+    const trimmed = (override?.profession ?? profession).trim();
+    if (!cityValue) {
       setError('Önce bir şehir seç.');
       return;
     }
@@ -63,7 +69,7 @@ export function SearchScreen({
     try {
       const data = await api<SearchResponse>(
         serverUrl,
-        `/api/jobs?city=${encodeURIComponent(city)}&q=${encodeURIComponent(trimmed)}&fresh=${fresh ? 1 : 0}`,
+        `/api/jobs?city=${encodeURIComponent(cityValue)}&q=${encodeURIComponent(trimmed)}&fresh=${fresh ? 1 : 0}`,
         {},
         120_000,
       );
