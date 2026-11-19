@@ -7,7 +7,7 @@ const KEYS = {
 } as const;
 
 export const DEFAULT_SERVER_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8787';
+  process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.100:8787';
 
 export async function loadServerUrl(): Promise<string> {
   return (await AsyncStorage.getItem(KEYS.serverUrl)) ?? DEFAULT_SERVER_URL;

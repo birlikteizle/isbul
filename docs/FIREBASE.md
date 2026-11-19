@@ -1,7 +1,10 @@
 # Firebase Cloud Messaging (FCM) Kurulumu
 
-Bu adımlar, **uygulama kapalıyken bile** bildirim almanın tek yoludur. Firebase'in ücretsiz
-(Spark) planı FCM için yeterlidir.
+Bu adımlar, **uygulama kapalıyken bile** anında bildirim almanın en iyi yoludur. Firebase'in
+ücretsiz (Spark) planı FCM için yeterlidir.
+
+> Firebase zorunlu değildir: yapılandırılmadığında uygulama 15 dakikada bir arka planda sunucuyu
+> kontrol eder ve yerel bildirim gösterir. FCM ile bu gecikme 1-3 saniyeye iner.
 
 ## 1. Firebase projesi oluştur
 

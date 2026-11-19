@@ -5,14 +5,15 @@ import {
   AppState,
   Platform,
   Pressable,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError, errorText } from './src/api';
+import { registerBackgroundTask } from './src/background';
 import { ErrorBanner } from './src/components';
 import { SearchScreen, type Prefill } from './src/screens/SearchScreen';
 import { SavedScreen } from './src/screens/SavedScreen';
@@ -51,7 +52,6 @@ const TABS: Array<{ key: Tab; label: string; icon: string }> = [
 ];
 
 function AppContent() {
-  const insets = useSafeAreaInsets();
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
@@ -214,6 +214,7 @@ function AppContent() {
       setPushToken(token);
       pushTokenRef.current = token;
       await connect(url, id, token);
+      void registerBackgroundTask();
       setBooting(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,7 +356,7 @@ function AppContent() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.header}>
         <View>
@@ -441,7 +442,7 @@ function AppContent() {
         ) : null}
       </View>
 
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+      <View style={styles.tabBar}>
         {TABS.map((item) => {
           const active = tab === item.key;
           return (
@@ -473,17 +474,14 @@ function AppContent() {
 }
 
 export default function App() {
-  return (
-    <SafeAreaProvider>
-      <AppContent />
-    </SafeAreaProvider>
-  );
+  return <AppContent />;
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.colors.bg,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) : 0,
   },
   splash: {
     flex: 1,
@@ -522,6 +520,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
   },
   tabItem: { flex: 1, alignItems: 'center', gap: 3 },
   tabIcon: { fontSize: 18, opacity: 0.55 },

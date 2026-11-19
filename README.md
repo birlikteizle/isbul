@@ -16,6 +16,8 @@
 - 📌 **Kayıtlı arama:** Şehir + meslek kombinasyonunu kaydeder.
 - 🔔 **Push bildirimi:** Sunucu her 5 dakikada bir tarar; yeni ilanı FCM ile gönderir.
   Uygulama kapalıyken de Android bildirim panelinde görünür.
+- 🔁 **Firebase'siz yedek:** FCM yapılandırılmadıysa uygulama 15 dakikada bir arka planda
+  sunucuyu kontrol eder ve yerel bildirim gösterir.
 - 📴 **Çevrimdışı liste:** Bildirimler ayrıca uygulama içinde saklanır.
 - 🧩 **Kolay kaynak ekleme:** Yeni site adaptörü veya CSS seçici tabanlı şirket sayfası eklenebilir.
 
@@ -90,11 +92,18 @@ npm run test:sources -- "Gaziantep" "satış"
 
 ### 3) Bildirimli APK
 
+**Bu makinede hazır APK:** `D:\Projeler\IsBul\build\isbul-0.1.0.apk` (20.8 MB, arm64-v8a).
+Telefona kopyalayıp kur; uygulama varsayılan olarak `http://192.168.1.100:8787` sunucusuna bağlanır.
+IP değişirse **Ayarlar** ekranından güncelle.
+
 - **GitHub Actions (önerilen):** Repoyu GitHub'a at → **Actions → Android APK → Run workflow** →
   artifact olarak `isbul-apk` indir. `GOOGLE_SERVICES_JSON` secret'ı eklenirse push hazır olur.
 - **EAS Build:** `npm i -g eas-cli && eas login && cd mobile && eas build -p android --profile preview`
 - **Yerel:** JDK 17 + Android SDK kurulu olmalı:
   `cd mobile && npx expo prebuild -p android && cd android && gradlew.bat assembleRelease`
+
+> Yerel derlemede bu makinede `D:\Android\jdk\jdk-17.0.21+9` ve `D:\Android\sdk` kullanıldı.
+> Tek komutla yeniden üretmek için `docs/KURULUM.md` → “Hazır APK / yeniden derleme”.
 
 Ayrıntılı adımlar: [`docs/KURULUM.md`](docs/KURULUM.md) · [`docs/FIREBASE.md`](docs/FIREBASE.md)
 

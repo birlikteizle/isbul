@@ -135,7 +135,8 @@ export function SettingsScreen({
         </Text>
         <Text style={styles.helpSmall}>
           Bu adımlar tamamlanmadan arama çalışır; yeni ilanlar uygulama içindeki Bildirimler
-          sekmesinde görünür ama telefonun bildirim panelinde çıkmaz.
+          sekmesinde görünür. Firebase yoksa uygulama 15 dakikada bir arka planda sunucuyu kontrol
+          eder ve yerel bildirim gösterir.
         </Text>
       </Card>
 

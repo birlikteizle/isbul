@@ -46,7 +46,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     "extra": {
       "apiUrl": "http://10.0.2.2:8787"

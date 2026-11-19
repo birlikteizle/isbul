@@ -69,6 +69,11 @@ ipconfig
 Kablosuz ağ adaptöründeki **IPv4 Address** satırını al. Örn: `192.168.1.100`.
 
 2. Windows Güvenlik Duvarı'nda Node.js'e **özel ağ** erişimi ver (ilk çalıştırmada sorulur).
+   Soru gelmediyse yönetici PowerShell'de bir kez çalıştır:
+
+```powershell
+New-NetFirewallRule -DisplayName "IsBul API 8787" -Direction Inbound -LocalPort 8787 -Protocol TCP -Action Allow -Profile Private
+```
 
 3. Telefonun tarayıcısında `http://192.168.1.100:8787/health` adresini aç.
    Yanıt gelmiyorsa:
@@ -93,10 +98,39 @@ npx expo start
 - Üstteki rozet **“bağlı”** olmalı.
 
 > Expo Go'da push bildirimi alınamaz. Bildirim testi için APK gerekir.
+> APK'da Firebase yapılandırılmadıysa uygulama 15 dakikada bir arka planda sunucuyu kontrol eder
+> ve yerel bildirim gösterir.
 
 Android emülatör kullanıyorsan sunucu adresi `http://10.0.2.2:8787` olmalıdır (varsayılan).
 
 ## 4. APK üretimi
+
+### Bu makinede hazır APK
+
+`D:\Projeler\IsBul\build\isbul-0.1.0.apk` — imzalı, kurulabilir, arm64-v8a (modern Android telefonlar).
+Telefona kopyala → aç → “bilinmeyen kaynaklara izin ver” → kur.
+
+Varsayılan sunucu: `http://192.168.1.100:8787`. Değiştirmek için uygulamada **Ayarlar → Sunucu adresi**.
+
+### Yeniden derleme (bu makinede kurulu araçlarla)
+
+```powershell
+$env:JAVA_HOME="D:\Android\jdk\jdk-17.0.21+9"
+$env:ANDROID_HOME="D:\Android\sdk"
+$env:ANDROID_SDK_ROOT="D:\Android\sdk"
+$env:GRADLE_USER_HOME="D:\Android\gradle-home"
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.100:8787"
+cd D:\Projeler\IsBul\mobile
+npx expo prebuild -p android --clean --no-install
+Set-Content android\local.properties "sdk.dir=D:\Android\sdk" -Encoding ascii
+cd android
+.\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+```
+
+Çıktı: `mobile\android\app\build\outputs\apk\release\app-release.apk`
+
+> Yalnızca `arm64-v8a` derlenir; dosya küçük kalır. Eski 32-bit telefonlar için
+> `-PreactNativeArchitectures=armeabi-v7a` kullan veya parametreyi tamamen kaldır.
 
 ### Seçenek A — GitHub Actions (önerilen, ücretsiz)
 
@@ -177,7 +211,7 @@ Ayrıntılı rehber: [`FIREBASE.md`](FIREBASE.md). Özet:
 | “Sunucuya ulaşılamadı” | Aynı Wi-Fi? IP doğru? Güvenlik duvarı? `http://IP:8787/health` tarayıcıda açılıyor mu? |
 | Sunucu açılışta `node:sqlite` hatası | Node 24+ kullan veya `node --experimental-sqlite dist/index.js` |
 | Arama 20 sn sürüyor | Normal; SecretCV/İŞKUR yavaş. Sonuçlar 10 dk önbelleklenir. |
-| Bildirim gelmiyor | Firebase anahtarı? `google-services.json`? Bildirim izni? Uygulama APK mı? |
+| Bildirim gelmiyor | Firebase anahtarı? `google-services.json`? Bildirim izni? Uygulama APK mı? Firebase yoksa 15 dk'lık arka plan kontrolünün çalışması için uygulamayı bir kez aç ve pil optimizasyonundan muaf tut. |
 | SecretCV 0 sonuç | Site bot koruması uyguluyor; diğer kaynaklar çalışır. |
 | APK “app not installed” | Eski sürümü kaldır; imza uyuşmazlığı olabilir. |
 | `usesCleartextTraffic` | Yerel `http://` için açık. Üretimde HTTPS kullan. |
