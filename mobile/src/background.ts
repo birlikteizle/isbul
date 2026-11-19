@@ -1,79 +1,108 @@
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from './api';
-import { loadDeviceId, loadPushToken, loadServerUrl } from './storage';
-import type { Meta, NotificationRow } from './types';
+import { runLocalSearch } from './local/search';
+import { applyCheckResults, loadLocalState, setLastCheck, type CheckResult } from './local/store';
 
-export const BACKGROUND_TASK_NAME = 'isbul-notification-check';
-const LAST_SEEN_KEY = 'isbul.lastNotificationAt';
+export const BACKGROUND_TASK_NAME = 'isbul-local-check';
+const LEGACY_TASK_NAME = 'isbul-notification-check';
 
-/**
- * Firebase yapılandırılmadıysa uygulama kapalıyken bile 15 dakikada bir sunucuyu kontrol eder
- * ve yeni bildirimleri yerel Android bildirimi olarak gösterir.
- */
+export interface LocalCheckSummary {
+  ok: boolean;
+  newCount: number;
+  checked: number;
+  skipped: boolean;
+  errors: string[];
+}
+
+async function performCheck(scheduleNotifications: boolean): Promise<LocalCheckSummary> {
+  const state = await loadLocalState();
+  const active = state.searches.filter((search) => search.active === 1).slice(0, 5);
+
+  if (active.length === 0) {
+    return { ok: true, newCount: 0, checked: 0, skipped: true, errors: [] };
+  }
+
+  const results: CheckResult[] = [];
+  const errors: string[] = [];
+
+  for (const search of active) {
+    try {
+      const response = await runLocalSearch(search.city, search.profession, { fresh: true });
+      results.push({
+        searchId: search.id,
+        items: response.items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          company: item.company,
+        })),
+      });
+    } catch (error) {
+      errors.push(`${search.city} / ${search.profession}: ${(error as Error).message}`);
+    }
+
+    // Siteleri art arda yormamak için aramalar arasında kısa bir nefes bırak.
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+
+  const applied = await applyCheckResults(results);
+
+  if (scheduleNotifications) {
+    for (const notification of applied.notifications) {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: notification.title,
+            body: notification.body,
+            sound: 'default',
+            data: { notificationId: notification.id, searchId: notification.search_id },
+          },
+          trigger: null,
+        });
+      } catch {
+        // Bildirim izni yoksa sessizce devam et; kayıt uygulama içinde duruyor.
+      }
+    }
+  }
+
+  await setLastCheck(new Date().toISOString());
+
+  return {
+    ok: errors.length < active.length,
+    newCount: applied.notifications.length,
+    checked: results.length,
+    skipped: false,
+    errors,
+  };
+}
+
 TaskManager.defineTask(BACKGROUND_TASK_NAME, async () => {
   try {
-    const [serverUrl, deviceId, token] = await Promise.all([
-      loadServerUrl(),
-      loadDeviceId(),
-      loadPushToken(),
-    ]);
-    if (!deviceId) return BackgroundTask.BackgroundTaskResult.Success;
-
-    const meta = await api<Meta>(serverUrl, '/api/meta', {}, 15_000);
-
-    // FCM hazırsa push zaten geliyor; çift bildirim gönderme.
-    if (meta.pushEnabled && token) return BackgroundTask.BackgroundTaskResult.Success;
-
-    const data = await api<{ notifications: NotificationRow[] }>(
-      serverUrl,
-      `/api/notifications?deviceId=${deviceId}`,
-      {},
-      20_000,
-    );
-
-    const items = data.notifications ?? [];
-    const lastSeen = await AsyncStorage.getItem(LAST_SEEN_KEY);
-    const lastTime = lastSeen ? Date.parse(lastSeen) : 0;
-
-    const fresh = items
-      .filter((item) => {
-        const time = Date.parse(item.created_at);
-        return Number.isFinite(time) && time > lastTime;
-      })
-      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
-
-    if (!lastSeen) {
-      if (items[0]) await AsyncStorage.setItem(LAST_SEEN_KEY, items[0].created_at);
-      return BackgroundTask.BackgroundTaskResult.Success;
-    }
-
-    for (const item of fresh.slice(-5)) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: item.title,
-          body: item.body,
-          sound: 'default',
-          data: { notificationId: item.id },
-        },
-        trigger: null,
-      });
-    }
-
-    if (fresh.length > 0) {
-      await AsyncStorage.setItem(LAST_SEEN_KEY, fresh[fresh.length - 1].created_at);
-    }
-
-    return BackgroundTask.BackgroundTaskResult.Success;
+    const summary = await performCheck(true);
+    return summary.ok
+      ? BackgroundTask.BackgroundTaskResult.Success
+      : BackgroundTask.BackgroundTaskResult.Failed;
   } catch {
     return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
+/** Ayarlar ekranındaki "Şimdi kontrol et" ve ilk kurulum için. */
+export function runLocalCheckNow(): Promise<LocalCheckSummary> {
+  return performCheck(true);
+}
+
 export async function registerBackgroundTask(): Promise<boolean> {
   try {
+    // Eski sunucu tabanlı görevi temizle.
+    try {
+      if (await TaskManager.isTaskRegisteredAsync(LEGACY_TASK_NAME)) {
+        await BackgroundTask.unregisterTaskAsync(LEGACY_TASK_NAME);
+      }
+    } catch {
+      // yoksay
+    }
+
     const status = await BackgroundTask.getStatusAsync();
     if (status !== BackgroundTask.BackgroundTaskStatus.Available) return false;
 
@@ -84,5 +113,15 @@ export async function registerBackgroundTask(): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function unregisterBackgroundTask(): Promise<void> {
+  try {
+    if (await TaskManager.isTaskRegisteredAsync(BACKGROUND_TASK_NAME)) {
+      await BackgroundTask.unregisterTaskAsync(BACKGROUND_TASK_NAME);
+    }
+  } catch {
+    // yoksay
   }
 }

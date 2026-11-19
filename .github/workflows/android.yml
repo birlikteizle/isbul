@@ -1,3 +1,5 @@
+# Android APK
+
 name: Android APK
 
 on:
@@ -32,17 +34,6 @@ jobs:
 
       - name: Bağımlılıkları kur
         run: npm ci
-
-      - name: Firebase yapılandırması (opsiyonel)
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
-            echo "google-services.json yazıldı."
-          else
-            echo "GOOGLE_SERVICES_JSON yok; push bildirimleri olmadan derlenecek."
-          fi
 
       - name: Android projesini üret
         run: npx expo prebuild --platform android --no-install

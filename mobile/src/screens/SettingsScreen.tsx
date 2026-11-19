@@ -1,10 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Field, Screen, SectionTitle } from '../components';
+import React from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Button, Card, Screen, SectionTitle } from '../components';
 import { theme } from '../theme';
-import type { Meta } from '../types';
+import { timeAgo } from '../utils';
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: 'ok' | 'warn' | 'muted' }) {
+export type PermissionState = 'granted' | 'denied' | 'undetermined';
+
+function Row({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: 'ok' | 'warn' | 'muted';
+}) {
   const color =
     tone === 'ok'
       ? theme.colors.green
@@ -22,125 +32,122 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: 'ok'
 }
 
 export function SettingsScreen({
-  serverUrl,
-  connected,
-  meta,
-  deviceId,
-  pushToken,
-  pushError,
-  connecting,
-  onSave,
-  onTestPush,
+  searchesCount,
+  notificationsCount,
+  lastCheckAt,
+  checking,
+  backgroundReady,
+  permission,
+  onCheckNow,
+  onRequestPermission,
+  onReset,
 }: {
-  serverUrl: string;
-  connected: boolean;
-  meta: Meta | null;
-  deviceId: string | null;
-  pushToken: string | null;
-  pushError: string | null;
-  connecting: boolean;
-  onSave: (url: string) => void;
-  onTestPush: () => void;
+  searchesCount: number;
+  notificationsCount: number;
+  lastCheckAt: string | null;
+  checking: boolean;
+  backgroundReady: boolean;
+  permission: PermissionState;
+  onCheckNow: () => void;
+  onRequestPermission: () => void;
+  onReset: () => void;
 }) {
-  const [url, setUrl] = useState(serverUrl);
-
-  useEffect(() => setUrl(serverUrl), [serverUrl]);
+  const permissionText =
+    permission === 'granted'
+      ? 'Açık'
+      : permission === 'denied'
+        ? 'Kapalı — izin ver'
+        : 'Henüz sorulmadı';
 
   return (
     <Screen>
       <View style={{ gap: 6 }}>
         <Text style={styles.kicker}>AYARLAR</Text>
-        <Text style={styles.title}>Bağlantı ve bildirimler</Text>
+        <Text style={styles.title}>Telefon modu</Text>
       </View>
 
-      <Card style={{ gap: theme.space(4) }}>
-        <Field
-          label="Sunucu adresi"
-          value={url}
-          onChangeText={setUrl}
-          placeholder="http://192.168.1.100:8787"
-          keyboardType="url"
-        />
-        <Button
-          title={connecting ? 'Bağlanıyor…' : 'Kaydet ve bağlan'}
-          onPress={() => onSave(url.trim())}
-          loading={connecting}
-        />
-        <View style={styles.statusLine}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: connected ? theme.colors.green : theme.colors.red },
-            ]}
-          />
-          <Text style={[styles.statusText, { color: connected ? theme.colors.green : theme.colors.red }]}>
-            {connected ? 'Sunucuya bağlı' : 'Sunucuya bağlı değil'}
-          </Text>
-        </View>
-        <Text style={styles.helpSmall}>
-          Telefon ve bilgisayar aynı Wi-Fi ağında olmalı. Bilgisayarda `ipconfig` komutundaki IPv4
-          adresini ve `:8787` portunu yaz. Örn: http://192.168.1.100:8787
+      <Card style={{ gap: 8 }}>
+        <Text style={styles.cardTitle}>Sunucusuz çalışıyor</Text>
+        <Text style={styles.help}>
+          Arama ve bildirimler tamamen bu telefonda çalışır. Bilgisayar, sunucu, GitHub Actions veya
+          Firebase gerekmez. Uygulama kapalıyken Android'in arka plan görevi devreye girer.
         </Text>
       </Card>
 
-      <SectionTitle>Sunucu durumu</SectionTitle>
+      <SectionTitle>Durum</SectionTitle>
       <Card style={{ gap: 2 }}>
+        <Row label="Kayıtlı arama" value={`${searchesCount} adet`} tone={searchesCount > 0 ? 'ok' : 'muted'} />
+        <Row label="Bildirim geçmişi" value={`${notificationsCount} kayıt`} />
         <Row
-          label="Servis"
-          value={connected ? `Çalışıyor · ${meta?.app ?? 'İşBul'}` : 'Kapalı'}
-          tone={connected ? 'ok' : 'warn'}
+          label="Bildirim izni"
+          value={permissionText}
+          tone={permission === 'granted' ? 'ok' : 'warn'}
         />
         <Row
-          label="Taranan kaynak"
-          value={meta ? `${meta.sources.length} kaynak` : '—'}
+          label="Arka plan kontrolü"
+          value={backgroundReady ? 'Açık (15 dk)' : 'Kapalı / kısıtlı'}
+          tone={backgroundReady ? 'ok' : 'warn'}
         />
         <Row
-          label="Tarama aralığı"
-          value={meta ? `${Math.round(meta.scanIntervalSeconds / 60)} dakika` : '—'}
-        />
-        <Row
-          label="Push altyapısı"
-          value={meta?.pushEnabled ? 'Firebase bağlı' : 'Firebase yapılandırılmadı'}
-          tone={meta?.pushEnabled ? 'ok' : 'warn'}
+          label="Son kontrol"
+          value={lastCheckAt ? timeAgo(lastCheckAt) : 'Henüz yok'}
         />
       </Card>
 
-      <SectionTitle>Cihaz</SectionTitle>
-      <Card style={{ gap: 2 }}>
-        <Row label="Cihaz kimliği" value={deviceId ? `${deviceId.slice(0, 8)}…${deviceId.slice(-4)}` : 'Yok'} />
-        <Row
-          label="FCM token"
-          value={pushToken ? `${pushToken.slice(0, 14)}…` : 'Alınamadı'}
-          tone={pushToken ? 'ok' : 'warn'}
-        />
-        {pushError ? <Text style={styles.pushError}>{pushError}</Text> : null}
+      <View style={{ gap: 8 }}>
+        {permission !== 'granted' ? (
+          <Button title="Bildirim izni ver" onPress={onRequestPermission} />
+        ) : null}
         <Button
-          title="Test bildirimi gönder"
+          title={checking ? 'Kontrol ediliyor…' : 'Şimdi kontrol et'}
           variant="ghost"
-          onPress={onTestPush}
-          disabled={!deviceId}
-          style={{ marginTop: 10 }}
+          onPress={onCheckNow}
+          loading={checking}
+          disabled={searchesCount === 0}
         />
-      </Card>
+      </View>
 
-      <SectionTitle>Firebase kurulumu (tek seferlik)</SectionTitle>
+      <SectionTitle>Nasıl çalışır?</SectionTitle>
       <Card style={{ gap: 8 }}>
         <Text style={styles.help}>
-          1. Firebase Console’da ücretsiz bir proje aç.{'\n'}
-          2. Android uygulaması ekle: paket adı `com.isbul.app`.{'\n'}
-          3. `google-services.json` dosyasını `mobile/` klasörüne koy.{'\n'}
-          4. Proje ayarları → Service accounts → yeni özel anahtar indir.{'\n'}
-          5. Anahtarın içeriğini sunucuda `FIREBASE_SERVICE_ACCOUNT` değişkenine yaz.{'\n'}
-          6. Sunucuyu yeniden başlat ve uygulamayı yeniden derle.
-        </Text>
-        <Text style={styles.helpSmall}>
-          Bu adımlar tamamlanmadan arama çalışır; yeni ilanlar uygulama içindeki Bildirimler
-          sekmesinde görünür. Firebase yoksa uygulama 15 dakikada bir arka planda sunucuyu kontrol
-          eder ve yerel bildirim gösterir.
+          1. Ara sekmesinde şehir + meslek ara ve kaydet.{'\n'}
+          2. Kaydederken o anki ilanlar “görüldü” kabul edilir; eski ilanlar için bildirim gelmez.{'\n'}
+          3. Android, uygulama kapalıyken yaklaşık 15 dakikada bir arka plan kontrolü çalıştırır.{'\n'}
+          4. Yeni ilan varsa bildirim panelinde gösterilir ve Bildirimler sekmesine eklenir.{'\n'}
+          5. Kontrol aralığını Android pil tasarrufu nedeniyle uzatabilir; İşBul'u pil optimizasyonundan
+          muaf tutarsan daha düzenli çalışır.
         </Text>
       </Card>
 
-      <Text style={styles.version}>İşBul 0.1.0 · {serverUrl}</Text>
+      <SectionTitle>Kaynaklar</SectionTitle>
+      <Card style={{ gap: 6 }}>
+        <Text style={styles.help}>Kariyer.net · Eleman.net · İŞKUR · Kariyer Kapısı</Text>
+        <Text style={styles.helpDim}>
+          İŞKUR bazı mobil operatörlerde site koruması nedeniyle yanıt vermeyebilir. Kariyer.net ve
+          Eleman.net doğrudan telefon IP'siyle çalışır. SecretCV'nin bot koruması nedeniyle
+          kullanılmıyor.
+        </Text>
+      </Card>
+
+      <SectionTitle>Veriler</SectionTitle>
+      <Card style={{ gap: 10 }}>
+        <Text style={styles.helpDim}>
+          Kayıtlı aramalar, görülen ilan kimlikleri ve bildirimler yalnızca bu telefonda saklanır.
+          Uygulamayı silmek tüm verileri siler.
+        </Text>
+        <Button
+          title="Tüm verileri sıfırla"
+          variant="danger"
+          onPress={() =>
+            Alert.alert('Emin misin?', 'Tüm kayıtlı aramalar ve bildirimler silinecek.', [
+              { text: 'Vazgeç', style: 'cancel' },
+              { text: 'Sıfırla', style: 'destructive', onPress: onReset },
+            ])
+          }
+        />
+      </Card>
+
+      <Text style={styles.version}>İşBul 0.2.0 · sunucusuz telefon modu</Text>
     </Screen>
   );
 }
@@ -148,11 +155,9 @@ export function SettingsScreen({
 const styles = StyleSheet.create({
   kicker: { color: theme.colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1.6 },
   title: { color: theme.colors.text, fontSize: 26, fontWeight: '900' },
-  statusLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: 12, fontWeight: '800' },
-  helpSmall: { color: theme.colors.textDim, fontSize: 10, lineHeight: 16 },
+  cardTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '800' },
   help: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 21 },
+  helpDim: { color: theme.colors.textDim, fontSize: 11, lineHeight: 17 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -163,6 +168,5 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: theme.colors.textMuted, fontSize: 12 },
   rowValue: { fontSize: 12, fontWeight: '700', flex: 1, textAlign: 'right' },
-  pushError: { color: theme.colors.accent, fontSize: 11, lineHeight: 16, marginTop: 6 },
   version: { color: theme.colors.textDim, fontSize: 10, textAlign: 'center', marginTop: 4 },
 });

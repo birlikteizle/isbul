@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  Linking,
   Platform,
   Pressable,
   StatusBar as RNStatusBar,
@@ -12,24 +13,16 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import { api, ApiError, errorText } from './src/api';
-import { registerBackgroundTask } from './src/background';
+import { registerBackgroundTask, runLocalCheckNow } from './src/background';
+import { runLocalSearch } from './src/local/search';
+import { loadLocalState, localActions, type LocalSearch } from './src/local/store';
 import { ErrorBanner } from './src/components';
-import { SearchScreen, type Prefill } from './src/screens/SearchScreen';
+import { SearchScreen, type Prefill, type SaveResult } from './src/screens/SearchScreen';
 import { SavedScreen } from './src/screens/SavedScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
-import { SettingsScreen } from './src/screens/SettingsScreen';
-import {
-  DEFAULT_SERVER_URL,
-  loadDeviceId,
-  loadPushToken,
-  loadServerUrl,
-  saveDeviceId,
-  savePushToken,
-  saveServerUrl,
-} from './src/storage';
+import { SettingsScreen, type PermissionState } from './src/screens/SettingsScreen';
 import { theme } from './src/theme';
-import type { DeviceRow, Meta, NotificationRow, SearchRow } from './src/types';
+import type { NotificationRow } from './src/types';
 
 Notifications.setNotificationHandler({
   handleNotification: async () =>
@@ -51,290 +44,166 @@ const TABS: Array<{ key: Tab; label: string; icon: string }> = [
   { key: 'settings', label: 'Ayarlar', icon: '⚙️' },
 ];
 
-function AppContent() {
-  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [pushToken, setPushToken] = useState<string | null>(null);
-  const [pushError, setPushError] = useState<string | null>(null);
-  const [meta, setMeta] = useState<Meta | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [booting, setBooting] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [searches, setSearches] = useState<SearchRow[]>([]);
+export default function App() {
+  const [searches, setSearches] = useState<LocalSearch[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
+  const [lastCheckAt, setLastCheckAt] = useState<string | null>(null);
+  const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<Tab>('search');
   const [prefill, setPrefill] = useState<Prefill | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [backgroundReady, setBackgroundReady] = useState(false);
+  const [permission, setPermission] = useState<PermissionState>('undetermined');
+  const [error, setError] = useState<string | null>(null);
+  const booted = useRef(false);
 
-  const deviceRef = useRef<string | null>(null);
-  const pushTokenRef = useRef<string | null>(null);
-  const pushRequested = useRef(false);
-
-  const loadSearches = useCallback(
-    async (url = serverUrl, id = deviceRef.current) => {
-      if (!id) return;
-      const data = await api<{ searches: SearchRow[] }>(url, `/api/searches?deviceId=${id}`);
-      setSearches(data.searches);
-    },
-    [serverUrl],
-  );
-
-  const loadNotifications = useCallback(
-    async (url = serverUrl, id = deviceRef.current) => {
-      if (!id) return;
-      const data = await api<{ notifications: NotificationRow[] }>(
-        url,
-        `/api/notifications?deviceId=${id}`,
-      );
-      setNotifications(data.notifications);
-    },
-    [serverUrl],
-  );
-
-  const setupPush = useCallback(async (url: string, id: string) => {
-    if (pushRequested.current) return;
-    pushRequested.current = true;
-
-    try {
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('isbul_jobs', {
-          name: 'Yeni iş ilanları',
-          importance: Notifications.AndroidImportance.HIGH,
-          vibrationPattern: [0, 250, 180, 250],
-          lightColor: '#F5A524',
-        });
-      }
-
-      const current = await Notifications.getPermissionsAsync();
-      let status = current.status;
-      if (status !== 'granted') {
-        status = (await Notifications.requestPermissionsAsync()).status;
-      }
-      if (status !== 'granted') {
-        setPushError('Bildirim izni verilmedi. Telefon ayarlarından izin verebilirsin.');
-        return;
-      }
-
-      const token = await Notifications.getDevicePushTokenAsync();
-      const value = typeof token.data === 'string' ? token.data : JSON.stringify(token.data);
-      pushTokenRef.current = value;
-      setPushToken(value);
-      await savePushToken(value);
-
-      await api<{ device: DeviceRow }>(url, '/api/devices', {
-        method: 'POST',
-        body: JSON.stringify({ deviceId: id, pushToken: value, platform: Platform.OS }),
-      });
-      setPushError(null);
-    } catch (err) {
-      const message = errorText(err);
-      setPushError(
-        /Expo Go|not supported|physical device/i.test(message)
-          ? 'Push bildirimi için uygulamanın APK sürümü ve google-services.json gerekli.'
-          : `Push token alınamadı: ${message}`,
-      );
-    }
+  const refreshState = useCallback(async () => {
+    const state = await loadLocalState();
+    setSearches(state.searches);
+    setNotifications(state.notifications);
+    setLastCheckAt(state.last_check_at);
   }, []);
 
-  const connect = useCallback(
-    async (url: string, existingId: string | null, token: string | null) => {
-      setConnecting(true);
-      setError(null);
+  async function setupNotifications() {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('isbul_jobs', {
+        name: 'Yeni iş ilanları',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 180, 250],
+        lightColor: '#F5A524',
+      });
+    }
 
-      try {
-        const metaData = await api<Meta>(url, '/api/meta', {}, 15_000);
-        setMeta(metaData);
-        setConnected(true);
-
-        let id = existingId;
-        let device: DeviceRow | null = null;
-
-        try {
-          const res = await api<{ device: DeviceRow }>(url, '/api/devices', {
-            method: 'POST',
-            body: JSON.stringify({
-              deviceId: existingId ?? undefined,
-              pushToken: token ?? undefined,
-              platform: Platform.OS,
-            }),
-          });
-          device = res.device;
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 404) {
-            const res = await api<{ device: DeviceRow }>(url, '/api/devices', {
-              method: 'POST',
-              body: JSON.stringify({ pushToken: token ?? undefined, platform: Platform.OS }),
-            });
-            device = res.device;
-          } else {
-            throw err;
-          }
-        }
-
-        if (device) {
-          id = device.id;
-          deviceRef.current = id;
-          setDeviceId(id);
-          await saveDeviceId(id);
-        }
-
-        if (id) {
-          await Promise.all([loadSearches(url, id), loadNotifications(url, id)]).catch(
-            () => undefined,
-          );
-          await setupPush(url, id);
-        }
-      } catch (err) {
-        setConnected(false);
-        setMeta(null);
-        setError(errorText(err));
-      } finally {
-        setConnecting(false);
-      }
-    },
-    [loadNotifications, loadSearches, setupPush],
-  );
-
-  const booted = useRef(false);
+    const current = await Notifications.getPermissionsAsync();
+    let status = current.status;
+    if (status !== 'granted') {
+      status = (await Notifications.requestPermissionsAsync()).status;
+    }
+    setPermission(status as PermissionState);
+  }
 
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    (async () => {
-      const [url, id, token] = await Promise.all([
-        loadServerUrl(),
-        loadDeviceId(),
-        loadPushToken(),
-      ]);
-      setServerUrl(url);
-      setDeviceId(id);
-      deviceRef.current = id;
-      setPushToken(token);
-      pushTokenRef.current = token;
-      await connect(url, id, token);
-      void registerBackgroundTask();
-      setBooting(false);
+    void (async () => {
+      try {
+        await setupNotifications();
+        const background = await registerBackgroundTask();
+        setBackgroundReady(background);
+        await refreshState();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBooting(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshState]);
 
-  // Uygulama öne geldiğinde listeleri tazele
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && connected) {
-        void loadSearches().catch(() => undefined);
-        void loadNotifications().catch(() => undefined);
-      }
+      if (state === 'active') void refreshState();
     });
     return () => sub.remove();
-  }, [connected, loadNotifications, loadSearches]);
+  }, [refreshState]);
 
-  // Bildirime dokununca bildirimler sekmesine git
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
       setTab('notifications');
-      void loadNotifications().catch(() => undefined);
+      void refreshState();
     });
     return () => sub.remove();
-  }, [loadNotifications]);
+  }, [refreshState]);
 
   useEffect(() => {
-    if (!connected || !deviceId) return;
-    if (tab === 'saved') {
-      setLoadingList(true);
-      void loadSearches()
-        .catch(() => undefined)
-        .finally(() => setLoadingList(false));
-    }
-    if (tab === 'notifications') {
-      setLoadingList(true);
-      void loadNotifications()
-        .catch(() => undefined)
-        .finally(() => setLoadingList(false));
-    }
-  }, [tab, connected, deviceId, loadSearches, loadNotifications]);
+    if (tab === 'saved' || tab === 'notifications') void refreshState();
+  }, [tab, refreshState]);
 
-  async function handleSaveServer(url: string) {
-    const normalized = url.replace(/\/+$/, '');
-    if (!/^https?:\/\/.+/.test(normalized)) {
-      Alert.alert('Geçersiz adres', 'Örnek: http://192.168.1.100:8787');
-      return;
-    }
-    pushRequested.current = false;
-    await saveServerUrl(normalized);
-    setServerUrl(normalized);
-    await connect(normalized, deviceRef.current, pushTokenRef.current);
+  async function handleSave(city: string, profession: string, ids: string[]): Promise<SaveResult> {
+    const before = (await loadLocalState()).searches.find(
+      (search) => search.city === city && search.profession === profession,
+    );
+    await localActions.addSearch(city, profession, ids);
+    await refreshState();
+
+    return {
+      count: ids.length,
+      message: before
+        ? 'Bu arama zaten kayıtlı. Yeni ilanlar için kontrol açık.'
+        : ids.length > 0
+          ? `Şu an ${ids.length} ilan görüldü olarak işaretlendi. Yeni ilanlar için kontrol açık.`
+          : 'Arama kaydedildi. Yeni ilan bulununca bildirim gönderilecek.',
+    };
   }
 
-  async function handleToggleSearch(id: string, active: boolean) {
-    setSearches((prev) => prev.map((s) => (s.id === id ? { ...s, active: active ? 1 : 0 } : s)));
-    try {
-      await api(serverUrl, `/api/searches/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ deviceId, active }),
-      });
-    } catch (err) {
-      Alert.alert('Güncellenemedi', errorText(err));
-      void loadSearches().catch(() => undefined);
-    }
+  async function handleToggle(id: string, active: boolean) {
+    await localActions.setActive(id, active);
+    await refreshState();
   }
 
-  function handleDeleteSearch(id: string) {
-    Alert.alert('Aramayı sil', 'Bu arama ve bildirimleri silinsin mi?', [
+  function handleDelete(id: string) {
+    Alert.alert('Aramayı sil', 'Bu arama ve görülen ilan kayıtları silinsin mi?', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Sil',
         style: 'destructive',
         onPress: () => {
           void (async () => {
-            try {
-              await api(serverUrl, `/api/searches/${id}?deviceId=${deviceId}`, { method: 'DELETE' });
-              setSearches((prev) => prev.filter((s) => s.id !== id));
-            } catch (err) {
-              Alert.alert('Silinemedi', errorText(err));
-            }
+            await localActions.removeSearch(id);
+            await refreshState();
           })();
         },
       },
     ]);
   }
 
-  async function markAllRead() {
-    if (!deviceId) return;
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })),
-    );
+  async function handleCheckNow() {
+    if (searches.length === 0) {
+      Alert.alert('Kayıtlı arama yok', 'Önce Ara sekmesinden bir şehir + meslek kaydet.');
+      return;
+    }
+    setChecking(true);
+    setError(null);
     try {
-      await api(serverUrl, '/api/notifications/read', {
-        method: 'POST',
-        body: JSON.stringify({ deviceId }),
-      });
-    } catch {
-      // sessizce geç
+      const summary = await runLocalCheckNow();
+      await refreshState();
+      if (summary.skipped) {
+        Alert.alert('Kontrol atlandı', 'Aktif kayıtlı arama bulunamadı.');
+      } else if (summary.errors.length > 0 && summary.checked === 0) {
+        Alert.alert('Kontrol başarısız', summary.errors.join('\n'));
+      } else {
+        Alert.alert(
+          summary.newCount > 0 ? `${summary.newCount} yeni ilan` : 'Yeni ilan yok',
+          summary.newCount > 0
+            ? 'Bildirimler sekmesine eklendi.'
+            : `${summary.checked} arama kontrol edildi.`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChecking(false);
     }
   }
 
-  async function handleTestPush() {
-    if (!deviceId) return;
-    try {
-      const res = await api<{ ok: boolean; pushEnabled: boolean }>(
-        serverUrl,
-        '/api/devices/test-push',
-        { method: 'POST', body: JSON.stringify({ deviceId }) },
-      );
+  async function requestPermission() {
+    const perms = await Notifications.requestPermissionsAsync();
+    setPermission(perms.status as PermissionState);
+    if (perms.status !== 'granted') {
       Alert.alert(
-        res.ok ? 'Gönderildi' : 'Gönderilemedi',
-        res.ok
-          ? 'Test bildirimi birkaç saniye içinde telefonuna düşecek.'
-          : `Sunucuda push kapalı (Firebase anahtarı yok) veya cihaz token’ı geçersiz.\n\nPush altyapısı: ${
-              res.pushEnabled ? 'açık' : 'kapalı'
-            }`,
+        'Bildirim izni kapalı',
+        'Telefon ayarlarından İşBul bildirimlerine izin vermen gerekiyor.',
+        [
+          { text: 'Kapat', style: 'cancel' },
+          { text: 'Ayarları aç', onPress: () => void Linking.openSettings() },
+        ],
       );
-    } catch (err) {
-      Alert.alert('Hata', errorText(err));
     }
+  }
+
+  async function handleReset() {
+    await localActions.reset();
+    await refreshState();
   }
 
   function openSearch(city: string, profession: string) {
@@ -342,14 +211,14 @@ function AppContent() {
     setTab('search');
   }
 
-  const unread = notifications.filter((n) => !n.read_at).length;
+  const unread = notifications.filter((notification) => !notification.read_at).length;
 
   if (booting) {
     return (
       <View style={styles.splash}>
         <StatusBar style="light" />
         <Text style={styles.logo}>İşBul</Text>
-        <Text style={styles.logoSub}>şehir + meslek radarı</Text>
+        <Text style={styles.logoSub}>telefonda çalışan radar</Text>
         <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
       </View>
     );
@@ -369,46 +238,42 @@ function AppContent() {
           <View
             style={[
               styles.connDot,
-              { backgroundColor: connected ? theme.colors.green : theme.colors.red },
+              { backgroundColor: backgroundReady ? theme.colors.green : theme.colors.accent },
             ]}
           />
           <Text
-            style={[styles.connText, { color: connected ? theme.colors.green : theme.colors.red }]}
+            style={[
+              styles.connText,
+              { color: backgroundReady ? theme.colors.green : theme.colors.accent },
+            ]}
           >
-            {connected ? 'bağlı' : 'kopuk'}
+            {backgroundReady ? 'sunucusuz' : 'kısıtlı'}
           </Text>
         </Pressable>
       </View>
 
       {error ? (
         <View style={{ paddingHorizontal: theme.space(5), paddingBottom: 6 }}>
-          <ErrorBanner message={error} onRetry={() => void connect(serverUrl, deviceId, pushToken)} />
+          <ErrorBanner message={error} onRetry={() => void refreshState()} />
         </View>
       ) : null}
 
       <View style={{ flex: 1 }}>
         {tab === 'search' ? (
           <SearchScreen
-            serverUrl={serverUrl}
-            meta={meta}
-            deviceId={deviceId}
             prefill={prefill}
-            onSaved={() => void loadSearches().catch(() => undefined)}
+            onSearch={(city, profession) => runLocalSearch(city, profession)}
+            onSave={handleSave}
           />
         ) : null}
 
         {tab === 'saved' ? (
           <SavedScreen
             searches={searches}
-            loading={loadingList}
-            onRefresh={() => {
-              setLoadingList(true);
-              void loadSearches()
-                .catch(() => undefined)
-                .finally(() => setLoadingList(false));
-            }}
-            onToggle={handleToggleSearch}
-            onDelete={handleDeleteSearch}
+            loading={false}
+            onRefresh={() => void refreshState()}
+            onToggle={(id, active) => void handleToggle(id, active)}
+            onDelete={handleDelete}
             onOpen={openSearch}
           />
         ) : null}
@@ -416,28 +281,28 @@ function AppContent() {
         {tab === 'notifications' ? (
           <NotificationsScreen
             notifications={notifications}
-            loading={loadingList}
-            onRefresh={() => {
-              setLoadingList(true);
-              void loadNotifications()
-                .catch(() => undefined)
-                .finally(() => setLoadingList(false));
+            loading={false}
+            onRefresh={() => void refreshState()}
+            onMarkAllRead={() => {
+              void (async () => {
+                await localActions.markAllRead();
+                await refreshState();
+              })();
             }}
-            onMarkAllRead={() => void markAllRead()}
           />
         ) : null}
 
         {tab === 'settings' ? (
           <SettingsScreen
-            serverUrl={serverUrl}
-            connected={connected}
-            meta={meta}
-            deviceId={deviceId}
-            pushToken={pushToken}
-            pushError={pushError}
-            connecting={connecting}
-            onSave={(url) => void handleSaveServer(url)}
-            onTestPush={() => void handleTestPush()}
+            searchesCount={searches.filter((search) => search.active === 1).length}
+            notificationsCount={notifications.length}
+            lastCheckAt={lastCheckAt}
+            checking={checking}
+            backgroundReady={backgroundReady}
+            permission={permission}
+            onCheckNow={() => void handleCheckNow()}
+            onRequestPermission={() => void requestPermission()}
+            onReset={() => void handleReset()}
           />
         ) : null}
       </View>
@@ -471,10 +336,6 @@ function AppContent() {
       </View>
     </View>
   );
-}
-
-export default function App() {
-  return <AppContent />;
 }
 
 const styles = StyleSheet.create({

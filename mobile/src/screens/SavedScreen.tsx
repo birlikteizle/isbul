@@ -96,10 +96,10 @@ export function SavedScreen({
       <SectionTitle>Nasıl çalışır?</SectionTitle>
       <Card style={{ gap: 6 }}>
         <Text style={styles.help}>
-          1. Kaydettiğin arama sunucuda saklanır.{'\n'}
-          2. Sunucu her {5} dakikada bir ilan sitelerini tarar.{'\n'}
-          3. Yeni ilan bulunca Firebase üzerinden telefonuna bildirim gider.{'\n'}
-          4. Uygulama kapalı olsa bile bildirim görünür.
+          1. Kaydettiğin arama telefonunda saklanır.{'\n'}
+          2. Android, uygulama kapalıyken yaklaşık 15 dakikada bir ilan sitelerini tarar.{'\n'}
+          3. Yeni ilan bulunca telefon bildirimi gösterir.{'\n'}
+          4. Bilgisayar, sunucu veya Firebase gerekmez.
         </Text>
       </Card>
     </Screen>

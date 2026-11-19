@@ -1,3 +1,6 @@
+> **Sürüm 0.2.0 notu:** Hazır APK Firebase kullanmaz; bildirimler telefonun arka plan göreviyle
+> yerel olarak gösterilir. Bu belge yalnızca **opsiyonel merkezi sunucu modu** içindir.
+
 # Firebase Cloud Messaging (FCM) Kurulumu
 
 Bu adımlar, **uygulama kapalıyken bile** anında bildirim almanın en iyi yoludur. Firebase'in

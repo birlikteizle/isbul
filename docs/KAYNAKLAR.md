@@ -1,3 +1,6 @@
+> **Sürüm 0.2.0 notu:** Aktif tarayıcılar `mobile/src/local/sources/` altındadır ve telefonda
+> çalışır. `server/src/sources/` kopyası yalnızca opsiyonel merkezi mod içindir.
+
 # Kaynaklar, Eşleştirme ve Yeni Kaynak Ekleme
 
 ## Kaynak adaptörleri

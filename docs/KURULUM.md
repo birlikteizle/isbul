@@ -1,3 +1,7 @@
+> **Sürüm 0.2.0 notu:** Bu klasördeki hazır APK **sunucusuz** çalışır. Aşağıdaki sunucu kurulumu
+> yalnızca **opsiyonel merkezi mod** içindir; normal kullanımda gerekmez.
+> Hazır APK: `D:\Projeler\IsBul\build\isbul-0.2.0-sunucusuz.apk`
+
 # Kurulum ve APK Üretimi
 
 ## 0. Gereksinimler

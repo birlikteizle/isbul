@@ -1,35 +1,35 @@
 {
-  "name": "isbul-mobile",
-  "version": "0.1.0",
-  "private": true,
-  "main": "index.ts",
-  "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "typecheck": "tsc --noEmit",
-    "prebuild": "expo prebuild --platform android",
-    "apk:debug": "expo prebuild --platform android --no-install && cd android && gradlew.bat assembleDebug",
-    "apk:release": "expo prebuild --platform android --no-install && cd android && gradlew.bat assembleRelease"
-  },
-  "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "expo": "~58.0.26",
-    "expo-background-task": "~58.0.13",
-    "expo-build-properties": "~58.0.12",
-    "expo-constants": "~58.0.16",
-    "expo-device": "~58.0.5",
-    "expo-notifications": "~58.1.9",
-    "expo-status-bar": "~58.0.5",
-    "expo-system-ui": "~58.0.7",
-    "expo-task-manager": "~58.0.14",
-    "expo-web-browser": "~58.1.0",
-    "react": "19.3.0",
-    "react-native": "0.88.1"
-  },
-  "devDependencies": {
-    "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
-  }
+    "name":  "isbul-mobile",
+    "version":  "0.2.0",
+    "private":  true,
+    "main":  "index.ts",
+    "scripts":  {
+                    "start":  "expo start",
+                    "android":  "expo run:android",
+                    "ios":  "expo run:ios",
+                    "web":  "expo start --web",
+                    "typecheck":  "tsc --noEmit",
+                    "prebuild":  "expo prebuild --platform android",
+                    "apk:debug":  "expo prebuild --platform android --no-install \u0026\u0026 cd android \u0026\u0026 gradlew.bat assembleDebug",
+                    "apk:release":  "expo prebuild --platform android --no-install \u0026\u0026 cd android \u0026\u0026 gradlew.bat assembleRelease"
+                },
+    "dependencies":  {
+                         "@react-native-async-storage/async-storage":  "^2.2.0",
+                         "expo":  "~58.0.26",
+                         "expo-background-task":  "~58.0.13",
+                         "expo-build-properties":  "~58.0.12",
+                         "expo-constants":  "~58.0.16",
+                         "expo-device":  "~58.0.5",
+                         "expo-notifications":  "~58.1.9",
+                         "expo-status-bar":  "~58.0.5",
+                         "expo-system-ui":  "~58.0.7",
+                         "expo-task-manager":  "~58.0.14",
+                         "expo-web-browser":  "~58.1.0",
+                         "react":  "19.3.0",
+                         "react-native":  "0.88.1"
+                     },
+    "devDependencies":  {
+                            "@types/react":  "~19.3.0",
+                            "typescript":  "~6.0.3"
+                        }
 }

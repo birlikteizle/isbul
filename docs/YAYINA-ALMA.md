@@ -1,3 +1,6 @@
+> **Sürüm 0.2.0 notu:** Hazır APK sunucusuz çalışır; bu belge yalnızca **opsiyonel merkezi sunucu
+> modu** içindir.
+
 # Sunucuyu Yayına Alma
 
 Push bildirimlerinin çalışması için sunucunun **7/24 ayakta** olması gerekir. Telefon uyurken

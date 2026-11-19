@@ -1,17 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { api, errorText } from '../api';
-import { Button, Card, CityPicker, EmptyState, ErrorBanner, Field, Pill, Screen, SectionTitle } from '../components';
+import { Button, Card, CityPicker, EmptyState, ErrorBanner, Field, Pill, Screen } from '../components';
+import { CITIES } from '../local/cities';
+import type { LocalSearchResponse } from '../local/types';
 import { sourceLabels, theme } from '../theme';
-import type { Meta, SearchResponse } from '../types';
 import { formatDuration, timeAgo } from '../utils';
 
 export interface Prefill {
@@ -20,23 +13,24 @@ export interface Prefill {
   nonce: number;
 }
 
+export interface SaveResult {
+  count: number;
+  message: string;
+}
+
 export function SearchScreen({
-  serverUrl,
-  meta,
-  deviceId,
   prefill,
-  onSaved,
+  onSearch,
+  onSave,
 }: {
-  serverUrl: string;
-  meta: Meta | null;
-  deviceId: string | null;
   prefill: Prefill | null;
-  onSaved: () => void;
+  onSearch: (city: string, profession: string) => Promise<LocalSearchResponse>;
+  onSave: (city: string, profession: string, ids: string[]) => Promise<SaveResult>;
 }) {
   const [city, setCity] = useState(prefill?.city ?? 'Gaziantep');
   const [profession, setProfession] = useState(prefill?.profession ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [result, setResult] = useState<SearchResponse | null>(null);
+  const [result, setResult] = useState<LocalSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,10 +43,7 @@ export function SearchScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
-  async function runSearch(
-    fresh: boolean,
-    override?: { city?: string; profession?: string },
-  ) {
+  async function runSearch(fresh: boolean, override?: { city?: string; profession?: string }) {
     const cityValue = (override?.city ?? city).trim();
     const trimmed = (override?.profession ?? profession).trim();
     if (!cityValue) {
@@ -67,15 +58,10 @@ export function SearchScreen({
     setLoading(true);
     setError(null);
     try {
-      const data = await api<SearchResponse>(
-        serverUrl,
-        `/api/jobs?city=${encodeURIComponent(cityValue)}&q=${encodeURIComponent(trimmed)}&fresh=${fresh ? 1 : 0}`,
-        {},
-        120_000,
-      );
+      const data = await onSearch(cityValue, trimmed);
       setResult(data);
     } catch (err) {
-      setError(errorText(err));
+      setError(err instanceof Error ? err.message : String(err));
       setResult(null);
     } finally {
       setLoading(false);
@@ -83,10 +69,6 @@ export function SearchScreen({
   }
 
   async function saveSearch() {
-    if (!deviceId) {
-      Alert.alert('Cihaz kaydı yok', 'Ayarlar bölümünden sunucuya bağlanmayı dene.');
-      return;
-    }
     if (!result) {
       Alert.alert('Önce arama yap', 'Kaydetmek için önce sonuçları getir.');
       return;
@@ -94,34 +76,30 @@ export function SearchScreen({
 
     setSaving(true);
     try {
-      const data = await api<{ baselineCount: number; message: string }>(
-        serverUrl,
-        '/api/searches',
-        {
-          method: 'POST',
-          body: JSON.stringify({ deviceId, city: result.city, profession: result.profession }),
-        },
-        120_000,
+      const saved = await onSave(
+        result.city,
+        result.profession,
+        result.items.map((item) => item.id),
       );
-      Alert.alert('Arama kaydedildi', data.message);
-      onSaved();
+      Alert.alert('Arama kaydedildi', saved.message);
     } catch (err) {
-      Alert.alert('Kaydedilemedi', errorText(err));
+      Alert.alert('Kaydedilemedi', err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
   }
 
-  const failedSources = result?.sources.filter((s) => s.warning && !s.ok) ?? [];
+  const failedSources = result?.sources.filter((source) => source.warning && !source.ok) ?? [];
   const isEmpty = result && result.items.length === 0;
+  const cities = CITIES.map((item) => ({ name: item.name, plate: item.plate }));
 
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.heroKicker}>ŞEHİR + MESLEK RADARI</Text>
+        <Text style={styles.heroKicker}>TELEFONDA ÇALIŞAN RADAR</Text>
         <Text style={styles.heroTitle}>Yeni ilanı{'\n'}sen bulma, biz bulalım.</Text>
         <Text style={styles.heroBody}>
-          Kariyer.net, Eleman.net, İŞKUR, Kariyer Kapısı ve daha fazlasında tara.
+          Kariyer.net, Eleman.net, İŞKUR ve Kariyer Kapısı doğrudan telefonunda taranır.
         </Text>
       </View>
 
@@ -150,16 +128,16 @@ export function SearchScreen({
         />
 
         <Button
-          title={loading ? 'Kaynaklar taranıyor…' : 'İlanları ara'}
+          title={loading ? 'İlanlar taranıyor…' : 'İlanları ara'}
           onPress={() => void runSearch(false)}
           loading={loading}
         />
         <Text style={styles.hint}>
-          İlk arama 5-20 saniye sürebilir. Aynı aramayı tekrar yapınca sonuçlar önbellekten gelir.
+          Arama doğrudan telefonundan yapılır; sunucu gerekmez. Sonuçlar 5 dakika önbelleklenir.
         </Text>
       </Card>
 
-      {error ? <ErrorBanner message={error} onRetry={() => void runSearch(false)} /> : null}
+      {error ? <ErrorBanner message={error} onRetry={() => void runSearch(true)} /> : null}
 
       {loading ? (
         <View style={styles.loadingCard}>
@@ -226,7 +204,7 @@ export function SearchScreen({
                 const iskurCount = Number(item.meta?.count ?? 0);
                 return (
                   <Card
-                    key={item.id || `${item.source}-${item.title}-${item.company}`}
+                    key={item.id}
                     onPress={() => void WebBrowser.openBrowserAsync(item.url)}
                     style={{ gap: 8 }}
                   >
@@ -277,7 +255,7 @@ export function SearchScreen({
 
       <CityPicker
         visible={pickerOpen}
-        cities={meta?.cities ?? []}
+        cities={cities}
         selected={city}
         onSelect={setCity}
         onClose={() => setPickerOpen(false)}

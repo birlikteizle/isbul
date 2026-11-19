@@ -1,151 +1,136 @@
-# İşBul
+# İşBul — Sunucusuz İş İlanı Radarı
 
-Şehir + meslek yazarsın; Türkiye'deki iş ilanı kaynaklarını tarar, sonuçları tek listede toplar ve
-**yeni bir ilan çıktığında telefonuna bildirim gönderir.** Uygulama kapalıyken bile bildirim gelir.
+Şehir + meslek yazarsın; uygulama **Kariyer.net, Eleman.net, İŞKUR ve Kariyer Kapısı'nı doğrudan
+telefonundan** tarar, sonuçları tek listede toplar ve yeni ilan çıktığında bildirim gönderir.
 
-> Örnek: **Gaziantep + satış** → Kariyer.net, Eleman.net, İŞKUR ve Kariyer Kapısı taranır;
-> kaydettiğin arama için yeni ilan görüldüğünde FCM üzerinden push gider.
+> **Bu sürüm sunucusuz çalışır.** Bilgisayar, sunucu, GitHub Actions, Firebase veya aylık ücret
+> gerekmez. Tüm tarama ve bildirim mantığı APK'nın içindedir.
 
----
-
-## Ne yapıyor?
-
-- 🔎 **Çok kaynaklı arama:** Kariyer.net, Eleman.net, İŞKUR, Kariyer Kapısı (RSS) ve yapılandırılabilir
-  belediye/şirket sayfaları.
-- 🧹 **Tekilleştirme:** Aynı ilan birden fazla kaynakta çıkarsa bir kez gösterilir.
-- 📌 **Kayıtlı arama:** Şehir + meslek kombinasyonunu kaydeder.
-- 🔔 **Push bildirimi:** Sunucu her 5 dakikada bir tarar; yeni ilanı FCM ile gönderir.
-  Uygulama kapalıyken de Android bildirim panelinde görünür.
-- 🔁 **Firebase'siz yedek:** FCM yapılandırılmadıysa uygulama 15 dakikada bir arka planda
-  sunucuyu kontrol eder ve yerel bildirim gösterir.
-- 📴 **Çevrimdışı liste:** Bildirimler ayrıca uygulama içinde saklanır.
-- 🧩 **Kolay kaynak ekleme:** Yeni site adaptörü veya CSS seçici tabanlı şirket sayfası eklenebilir.
-
-## Mimari
+## 📱 APK
 
 ```
-┌─────────────────────┐        HTTP/JSON        ┌──────────────────────────┐
-│  Android (Expo RN)  │ ◄─────────────────────► │  Node + Fastify API      │
-│  - Ara / Kaydet     │                         │  - /api/jobs             │
-│  - Bildirimler      │                         │  - /api/searches         │
-│  - Ayarlar          │                         │  - /api/notifications    │
-└─────────┬───────────┘                         └────────────┬─────────────┘
-          │ FCM push                                         │ 5 dk'da bir
-          ▼                                                  ▼
-┌─────────────────────┐                         ┌──────────────────────────┐
-│  Firebase Cloud     │ ◄────── bildirim ─────── │  Zamanlayıcı + Scraper   │
-│  Messaging (FCM)    │                         │  Kariyer.net · Eleman    │
-└─────────────────────┘                         │  İŞKUR · Kariyer Kapısı  │
-                                                │  SecretCV · Şirket pages │
-                                                └────────────┬─────────────┘
-                                                             ▼
-                                                   SQLite (.data/isbul.sqlite)
+D:\Projeler\IsBul\build\isbul-0.2.0-sunucusuz.apk
 ```
 
-**Neden sunucu?** Telefon kapalıyken/uykudayken site taramak mümkün değil. Bu yüzden tarama
-sunucuda yapılır, bildirim FCM ile telefona iletilir.
+- 20.8 MB · Android 7+ · arm64-v8a · imzalı, kurulabilir
+- Paket: `com.isbul.app` · sürüm 0.2.0 (versionCode 2)
+
+**Kurulum:** Dosyayı telefona kopyala → aç → “bilinmeyen kaynaklara izin ver” → kur → bildirim
+iznini ver.
+
+## Nasıl çalışıyor?
+
+```
+┌──────────────────────────── TELEFON ────────────────────────────┐
+│  Ara ekranı                                                     │
+│    └─ Kariyer.net / Eleman.net / İŞKUR / Kariyer Kapısı         │
+│         (doğrudan HTTPS isteği, sunucu yok)                     │
+│                                                                 │
+│  Kayıtlı arama (AsyncStorage)                                   │
+│    └─ görülen ilan kimlikleri                                   │
+│                                                                 │
+│  WorkManager (15 dk)                                            │
+│    └─ yeni ilan var mı? → yerel Android bildirimi               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- **Arama:** Telefon doğrudan ilan sitelerine istek atar; tarayıcı CORS kuralları native uygulamada
+  geçerli değildir.
+- **Tekilleştirme:** Aynı ilan birden fazla kaynakta çıkarsa tek kart gösterilir.
+- **Kayıt:** Şehir + meslek ve görülen ilan kimlikleri yalnızca telefonda saklanır.
+- **Bildirim:** Android'in arka plan görevi (WorkManager) yaklaşık 15 dakikada bir kontrol eder.
+  Uygulama kapalıyken de çalışır; sistem pil tasarrufu nedeniyle gecikebilir.
+
+## Özellikler
+
+- 🔎 Çok kaynaklı arama + tekilleştirme
+- 📌 Sınırsız kayıtlı arama (telefonda)
+- 🔔 Uygulama kapalıyken yerel bildirim
+- 🔋 Pil optimizasyonundan muaf tutma önerisi
+- 🌐 Sunucu/Firebase hesabı/aidat yok
+- 🔒 Veriler telefondan dışarı çıkmaz (yalnızca ilan sitelerine istek gider)
 
 ## Kaynak durumu (bu makinede test edildi)
 
-| Kaynak | Durum | Yöntem |
+| Kaynak | Durum | Not |
 |---|---|---|
-| Kariyer.net | ✅ | Şehir sayfası + `kw` parametresi, HTML kartları |
-| Eleman.net | ✅ | `aranan` + `sehir` parametreleri, HTML kartları |
-| İŞKUR | ✅ | `AcikIsMeslek.aspx?il=27` gömülü JSON (meslek bazlı açık iş sayısı) |
-| Kariyer Kapısı | ✅ | Resmî RSS beslemesi |
-| SecretCV | ⚠️ | Bot koruması nedeniyle sık sık HTTP 500/410; hata toleranslı |
-| Belediye / şirket | ⚙️ | `server/config/company-pages.json` ile eklenir |
+| Kariyer.net | ✅ | `satış` → 23 ilan; ara sıra 403, otomatik tekrar deneme |
+| Eleman.net | ✅ | `sehir={plaka}` + `aranan` |
+| İŞKUR | ⚠️ | İlk istek çoğu zaman geçer; site koruması tekrar denemelerde engelleyebilir |
+| Kariyer Kapısı | ✅ | Resmî RSS |
+| SecretCV | ❌ | Bot koruması; kullanılmıyor |
 
-> İŞKUR, bireysel ilan kaydı yerine **meslek bazında açık iş sayısı** verir (örn. "AŞÇI — 109 açık iş").
-> Diğer kaynaklar gerçek ilan başlığı ve orijinal ilan linki verir.
+> İŞKUR sonuçları meslek bazında “açık iş sayısı”dır (bireysel ilan kaydı değil).
 
-## Hızlı başlangıç
+## İlk kullanım
 
-### 1) Sunucu
+1. APK'yı kur, bildirim iznini ver.
+2. **Ara** → şehir seç (örn. Gaziantep) → meslek yaz (örn. satış) → **İlanları ara**.
+3. Sonuçları görünce **“Bu aramayı kaydet ve bildirim al”**.
+4. Kaydederken o anki ilanlar “görüldü” işaretlenir; sadece sonradan çıkanlar bildirilir.
+5. Telefon ayarlarında **İşBul → Pil → Kısıtlanmamış** yaparsan 15 dakikalık kontrol daha düzenli
+   çalışır.
+
+**Ayarlar → Şimdi kontrol et** ile elle de tarama başlatabilirsin.
+
+## Sınırlar
+
+- **Bildirim gecikmesi:** Android'in minimum arka plan aralığı **15 dakika**; pil tasarrufu bunu
+  uzatabilir. Anında (1-3 sn) bildirim için Firebase + 7/24 sunucu gerekir (opsiyonel, aşağıda).
+- **İnternet:** Telefonun interneti olmalı. Wi-Fi veya mobil veri fark etmez.
+- **İŞKUR koruması:** Bazı operatörlerde/yoğun saatlerde yanıt vermeyebilir; diğer kaynaklar devam
+  eder.
+- **Kariyer.net hız limiti:** Çok sık arama yapılırsa geçici 403 olabilir; uygulama bir kez tekrar
+  dener.
+- **APK mimarisi:** arm64. Çok eski 32-bit telefon için `armeabi-v7a` ile yeniden derlenebilir.
+
+## Geliştirme / yeniden derleme
 
 ```powershell
-cd server
+cd D:\Projeler\IsBul\mobile
 npm install
-copy .env.example .env
-npm run dev
+npx expo prebuild -p android --clean --no-install
+Set-Content android\local.properties "sdk.dir=D:\Android\sdk" -Encoding ascii
+cd android
+.\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 ```
 
-Sunucu: `http://localhost:8787` · Sağlık kontrolü: `GET /health`
+Bu makinede kurulu araçlar: JDK 17 (`D:\Android\jdk\...`), Android SDK (`D:\Android\sdk`),
+Gradle önbelleği (`D:\Android\gradle-home`).
 
-Tek seferlik kaynak testi:
+Klasörler:
+
+```
+mobile/src/local/        Telefonda çalışan tarayıcılar ve eşleştirme
+mobile/src/local/sources Kariyer.net, Eleman.net, İŞKUR, Kariyer Kapısı
+mobile/src/background.ts WorkManager görevi + yerel bildirim
+mobile/src/screens/      Ara / Kayıtlı / Bildirim / Ayarlar
+server/                  OPSİYONEL merkezi sunucu (kullanılmıyor)
+docs/                    Kurulum, kaynaklar, opsiyonel sunucu/Firebase
+```
+
+## GitHub'a koymak (opsiyonel)
+
+GitHub **kod saklar, sunucu çalıştırmaz**. Bu APK için GitHub'a ihtiyaç yok; yalnızca yedek/versiyon
+kontrolü istersen:
 
 ```powershell
-npm run test:sources -- "Gaziantep" "satış"
+cd D:\Projeler\IsBul
+git remote add origin https://github.com/KULLANICI/isbul.git
+git push -u origin main
 ```
 
-### 2) Telefon
+Repo oluşturduktan sonra bu komutları çalıştırman yeterli. `mobile/` klasörü GitHub Actions ile APK
+üretmeye de hazırdır (`.github/workflows/android.yml`).
 
-1. Bilgisayar ve telefon **aynı Wi-Fi** ağında olmalı.
-2. Bilgisayarın IPv4 adresini bul: `ipconfig`
-3. `cd mobile && npm install`
-4. `npx expo start`
-5. Telefonda **Expo Go** ile QR'ı okut (arayüz testi için).
-6. Uygulamada **Ayarlar → Sunucu adresi** alanına `http://BILGISAYAR_IP:8787` yaz.
+## Opsiyonel: merkezi sunucu modu
 
-> Expo Go'da push bildirimi çalışmaz (FCM native yapılandırması gerekir). Bildirimli sürüm için
-> aşağıdaki APK adımlarını izle.
+1-3 saniyelik bildirim veya çok kullanıcılı kullanım istersen `server/` klasöründeki Fastify + FCM
+sunucusu hâlâ duruyor. Bir VPS/Render/Railway hesabı ve Firebase anahtarı gerekir. Ayrıntılar:
+[`docs/YAYINA-ALMA.md`](docs/YAYINA-ALMA.md), [`docs/FIREBASE.md`](docs/FIREBASE.md).
 
-### 3) Bildirimli APK
+## Yasal not
 
-**Bu makinede hazır APK:** `D:\Projeler\IsBul\build\isbul-0.1.0.apk` (20.8 MB, arm64-v8a).
-Telefona kopyalayıp kur; uygulama varsayılan olarak `http://192.168.1.100:8787` sunucusuna bağlanır.
-IP değişirse **Ayarlar** ekranından güncelle.
-
-- **GitHub Actions (önerilen):** Repoyu GitHub'a at → **Actions → Android APK → Run workflow** →
-  artifact olarak `isbul-apk` indir. `GOOGLE_SERVICES_JSON` secret'ı eklenirse push hazır olur.
-- **EAS Build:** `npm i -g eas-cli && eas login && cd mobile && eas build -p android --profile preview`
-- **Yerel:** JDK 17 + Android SDK kurulu olmalı:
-  `cd mobile && npx expo prebuild -p android && cd android && gradlew.bat assembleRelease`
-
-> Yerel derlemede bu makinede `D:\Android\jdk\jdk-17.0.21+9` ve `D:\Android\sdk` kullanıldı.
-> Tek komutla yeniden üretmek için `docs/KURULUM.md` → “Hazır APK / yeniden derleme”.
-
-Ayrıntılı adımlar: [`docs/KURULUM.md`](docs/KURULUM.md) · [`docs/FIREBASE.md`](docs/FIREBASE.md)
-
-## Klasör yapısı
-
-```
-server/
-  src/sources/       Kaynak adaptörleri (kariyernet, eleman, iskur, kariyerkapisi, secretcv, company)
-  src/services/      Arama, zamanlayıcı, FCM bildirimi
-  src/routes/        HTTP API
-  config/            Şirket/belediye sayfası tanımları
-mobile/
-  App.tsx            Ana uygulama (4 sekme)
-  src/screens/       Ara, Kayıtlı, Bildirimler, Ayarlar
-docs/
-  KURULUM.md         Adım adım kurulum + APK
-  FIREBASE.md        FCM kurulumu
-  KAYNAKLAR.md       Kaynaklar, eşleştirme, yeni kaynak ekleme
-  YAYINA-ALMA.md     Sunucu deploy seçenekleri
-```
-
-## Önemli sınırlar
-
-- **“Anlık” bildirim = 2-5 dakika gecikme.** Hiçbir iş sitesi yeni ilan için webhook/API vermediği
-  için sunucu periyodik tarar. `SCAN_INTERVAL_MS` ile değiştirilebilir (minimum 60 sn).
-- **Kapalı uygulama bildirimi** için sunucunun 7/24 çalışması ve Firebase'in yapılandırılmış olması
-  gerekir. Ücretsiz katmanlar uykuya geçebilir; gerçek 7/24 için küçük bir sunucu (Render Starter,
-  VPS vb.) gerekir.
-- **Site kullanım şartları:** İlanlar herkese açık sayfalardan, düşük istek hızıyla ve orijinal
-  siteye yönlendirilerek okunur. Ticari kullanım/veri yeniden yayınlama öncesi ilgili sitelerin
-  şartlarını kontrol et. Bu proje kişisel kullanım için bir başlangıç noktasıdır.
-- **SecretCV** bot koruması nedeniyle kararsızdır; sonuç gelmezse diğer kaynaklar çalışmaya devam eder.
-
-## Yol haritası
-
-- [ ] İŞKUR açık iş sayısı arttığında “sayı arttı” bildirimi
-- [ ] İlçe bazlı filtreleme
-- [ ] İlanı favorilere ekleme / başvuru takibi
-- [ ] Belediye ve şirket kariyer sayfaları için hazır tanımlar
-- [ ] iOS derlemesi
-
-## Lisans
-
-Kişisel kullanım için geliştirildi. Üçüncü taraf sitelerin içerik ve kullanım şartları kendilerine
-aittir.
+İlanlar herkese açık sayfalardan, düşük istek hızıyla okunur ve orijinal ilana yönlendirilir. Ticari
+kullanım/veri yeniden yayınlama öncesi ilgili sitelerin kullanım şartlarını kontrol et. Bu proje
+kişisel kullanım için bir başlangıç noktasıdır.
