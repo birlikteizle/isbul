@@ -1,9 +1,12 @@
 import { findCity } from './cities';
 import { cityMatches, norm } from './text';
+import { rangeCutoff, type DateRange } from './dateRange';
 import { kariyerNetAdapter } from './sources/kariyernet';
 import { elemanAdapter } from './sources/eleman';
 import { iskurAdapter } from './sources/iskur';
 import { kariyerKapisiAdapter } from './sources/kariyerkapisi';
+import { newsAdapter } from './sources/news';
+import { socialAdapter } from './sources/social';
 import type { LocalJob, LocalSearchResponse, SearchQuery, SourceAdapter, SourceResult } from './types';
 
 const adapters: SourceAdapter[] = [
@@ -11,6 +14,8 @@ const adapters: SourceAdapter[] = [
   elemanAdapter,
   iskurAdapter,
   kariyerKapisiAdapter,
+  newsAdapter,
+  socialAdapter,
 ];
 
 const cache = new Map<string, { at: number; payload: LocalSearchResponse }>();
@@ -20,9 +25,13 @@ function fingerprint(job: LocalJob): string {
   return `${norm(job.title)}|${norm(job.company)}|${norm(job.city)}`;
 }
 
-async function safeSearch(adapter: SourceAdapter, query: SearchQuery): Promise<SourceResult> {
+async function safeSearch(
+  adapter: SourceAdapter,
+  query: SearchQuery,
+  range: DateRange,
+): Promise<SourceResult> {
   try {
-    return await adapter.search(query);
+    return await adapter.search(query, range);
   } catch (error) {
     return {
       source: adapter.source,
@@ -37,14 +46,15 @@ async function safeSearch(adapter: SourceAdapter, query: SearchQuery): Promise<S
 export async function runLocalSearch(
   cityInput: string,
   profession: string,
-  options: { fresh?: boolean } = {},
+  options: { fresh?: boolean; range?: DateRange; skipSocial?: boolean } = {},
 ): Promise<LocalSearchResponse> {
   const city = findCity(cityInput);
   const trimmed = (profession ?? '').trim();
   if (!city) throw new Error(`Şehir bulunamadı: ${cityInput}`);
   if (trimmed.length < 2) throw new Error('Meslek en az 2 karakter olmalı');
 
-  const key = `${norm(city.name)}|${norm(trimmed)}`;
+  const range: DateRange = options.range ?? 'all';
+  const key = `${norm(city.name)}|${norm(trimmed)}|${range}${options.skipSocial ? '|nosocial' : ''}`;
   const hit = cache.get(key);
   if (!options.fresh && hit && Date.now() - hit.at < CACHE_MS) {
     return { ...hit.payload, cached: true };
@@ -52,9 +62,14 @@ export async function runLocalSearch(
 
   const started = Date.now();
   const query: SearchQuery = { city: city.name, profession: trimmed };
-  const results = await Promise.all(adapters.map((adapter) => safeSearch(adapter, query)));
+  const activeAdapters = options.skipSocial
+    ? adapters.filter((adapter) => adapter.source !== 'social')
+    : adapters;
+  const results = await Promise.all(
+    activeAdapters.map((adapter) => safeSearch(adapter, query, range)),
+  );
 
-  const jobs: LocalJob[] = [];
+  const allJobs: LocalJob[] = [];
   const byId = new Set<string>();
   const byFingerprint = new Map<string, LocalJob>();
 
@@ -79,9 +94,20 @@ export async function runLocalSearch(
       const job: LocalJob = { ...item, id };
       byFingerprint.set(fp, job);
       byId.add(id);
-      jobs.push(job);
+      allJobs.push(job);
     }
   }
+
+  const cutoff = rangeCutoff(range);
+  const jobs = cutoff
+    ? allJobs.filter((job) => {
+        // İŞKUR güncel bir anlık görüntü, sosyal medya ise DDG'nin tarih filtresiyle geldi.
+        if (job.source === 'iskur' || job.source === 'social') return true;
+        if (!job.postedAt) return false;
+        const time = Date.parse(job.postedAt);
+        return Number.isFinite(time) && time >= cutoff;
+      })
+    : allJobs;
 
   jobs.sort((a, b) => {
     if (a.source === 'iskur' && b.source !== 'iskur') return -1;
@@ -97,9 +123,7 @@ export async function runLocalSearch(
   const sources = results.map((result) => ({
     source: result.source,
     label: result.label,
-    count: result.items.filter(
-      (item) => !item.city || item.city === 'Türkiye' || cityMatches(item.city, city.name),
-    ).length,
+    count: jobs.filter((job) => job.source === result.source).length,
     durationMs: result.durationMs,
     warning: result.warning,
     ok: !result.warning || !/hata|HTTP|geçersiz|yanıt vermedi/i.test(result.warning),
@@ -118,9 +142,10 @@ export async function runLocalSearch(
     cached: false,
     tookMs: Date.now() - started,
     fetchedAt: new Date().toISOString(),
+    allIds: allJobs.map((job) => job.id),
   };
 
-  if (!hardFailure) cache.set(key, { at: Date.now(), payload });
+  if (!hardFailure && !options.skipSocial) cache.set(key, { at: Date.now(), payload });
   return payload;
 }
 

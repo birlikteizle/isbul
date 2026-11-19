@@ -29,6 +29,8 @@ export const theme = {
     eleman: '#3DDC97',
     iskur: '#F5A524',
     kariyerkapisi: '#B18CFF',
+    news: '#7DD3FC',
+    social: '#FF8AB3',
     secretcv: '#FF8AB3',
     company: '#7DD3FC',
   } as Record<string, string>,
@@ -39,6 +41,8 @@ export const sourceLabels: Record<string, string> = {
   eleman: 'Eleman.net',
   iskur: 'İŞKUR',
   kariyerkapisi: 'Kariyer Kapısı',
+  news: 'Haberler',
+  social: 'Sosyal Medya',
   secretcv: 'SecretCV',
   company: 'Belediye / Şirket',
 };

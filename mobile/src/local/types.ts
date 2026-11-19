@@ -1,4 +1,6 @@
-export type JobSource = 'kariyernet' | 'eleman' | 'iskur' | 'kariyerkapisi';
+import type { DateRange } from './dateRange';
+
+export type JobSource = 'kariyernet' | 'eleman' | 'iskur' | 'kariyerkapisi' | 'news' | 'social';
 
 export interface JobHit {
   source: JobSource;
@@ -34,7 +36,7 @@ export interface SourceResult {
 export interface SourceAdapter {
   source: JobSource;
   label: string;
-  search(query: SearchQuery): Promise<SourceResult>;
+  search(query: SearchQuery, range?: DateRange): Promise<SourceResult>;
 }
 
 export interface LocalSearchResponse {
@@ -52,4 +54,6 @@ export interface LocalSearchResponse {
   cached: boolean;
   tookMs: number;
   fetchedAt: string;
+  /** Tarih filtresinden bağımsız tüm ilan kimlikleri (kayıt sırasında baseline için). */
+  allIds: string[];
 }

@@ -1,4 +1,4 @@
-> **Sürüm 0.2.0 notu:** Aktif tarayıcılar `mobile/src/local/sources/` altındadır ve telefonda
+> **Sürüm 0.3.0 notu:** Aktif tarayıcılar `mobile/src/local/sources/` altındadır ve telefonda
 > çalışır. `server/src/sources/` kopyası yalnızca opsiyonel merkezi mod içindir.
 
 # Kaynaklar, Eşleştirme ve Yeni Kaynak Ekleme
@@ -73,6 +73,44 @@ export interface SourceAdapter {
 - Site yoğun bot koruması uyguluyor; aynı IP'den tekrarlanan isteklerde `410 Gone` / `500` döner.
 - Adaptör hata toleranslıdır: sonuç gelmezse uyarı gösterilir, diğer kaynaklar etkilenmez.
 - İleride resmî API/anlaşma ile değiştirilmesi önerilir.
+
+### Google News (derin haber araması)
+
+- `https://news.google.com/rss/search?q={şehir} {meslek} iş ilanı&hl=tr&gl=TR&ceid=TR:tr`
+- İki sorgu yapılır: “iş ilanı” ve “personel alımı”.
+- Başlık + açıklamada **hem şehir hem meslek** geçmelidir; aksi halde ilgisiz haberler elenir.
+- Tarih aralığı `when:1d`, `when:7d`, `when:1m` ile daraltılır; ayrıca yayın tarihine göre
+  istemci tarafında filtrelenir.
+- Kaynak adı (`<source>`) şirket alanında gösterilir; link orijinal habere gider.
+
+### Sosyal medya (Instagram / Facebook)
+
+- Doğrudan Instagram API'si kullanılmaz; Meta'nın resmî API'si uygulama/izin gerektirir.
+- DuckDuckGo HTML + Brave Search sonuçları taranır:
+  - `site:instagram.com {şehir} {meslek} iş`
+  - `site:facebook.com ...`
+- DDG doğrudan gönderi/reel linkleri döndürebilir; Brave çoğunlukla profil hesapları döndürür.
+- **Önemli sınır:** Arama motorları otomatik sorgularda `202/429` hız sınırı uygular. Uygulama
+  30 dakika cooldown uygular, ardından tekrar dener. Mobil veri farklı IP kullandığı için genelde
+  daha iyi çalışır.
+- Tarih filtresi sosyal sonuçlarda yaklaşıktır; DDG/Brave `df/tf` parametreleri + filtresiz yedek
+  kullanılır.
+- Profil sonuçları yeni gönderi bildirimi için tek seferlik eşleşir; her yeni gönderiyi yakalamak
+  için resmî API gerekir.
+
+### Tarih filtresi
+
+| Seçim | Google News | DDG | Brave |
+|---|---|---|---|
+| Son 24 saat | `when:1d` | `df=d` | `tf=pd` |
+| Son 1 hafta | `when:7d` | `df=w` | `tf=pw` |
+| Son 2 hafta | `when:1m` + istemci filtresi | `df=m` | `tf=pm` |
+| Son 1 ay | `when:1m` + istemci filtresi | `df=m` | `tf=pm` |
+| Tümü | — | — | — |
+
+- Kariyer.net/Eleman.net/Kariyer Kapısı sonuçları `postedAt` alanına göre filtrelenir.
+- İŞKUR güncel bir anlık görüntü olduğu için her zaman gösterilir.
+- Tarihi bilinmeyen sosyal medya sonuçları “yaklaşık” etiketiyle gösterilir.
 
 ## Eşleştirme ve tekilleştirme
 

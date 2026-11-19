@@ -262,7 +262,7 @@ export default function App() {
         {tab === 'search' ? (
           <SearchScreen
             prefill={prefill}
-            onSearch={(city, profession) => runLocalSearch(city, profession)}
+            onSearch={(city, profession, range) => runLocalSearch(city, profession, { range })}
             onSave={handleSave}
           />
         ) : null}

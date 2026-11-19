@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import * as WebBrowser from 'expo-web-browser';
 import { Button, Card, CityPicker, EmptyState, ErrorBanner, Field, Pill, Screen } from '../components';
 import { CITIES } from '../local/cities';
+import { DATE_RANGES, type DateRange } from '../local/dateRange';
 import type { LocalSearchResponse } from '../local/types';
 import { sourceLabels, theme } from '../theme';
 import { formatDuration, timeAgo } from '../utils';
@@ -24,11 +25,12 @@ export function SearchScreen({
   onSave,
 }: {
   prefill: Prefill | null;
-  onSearch: (city: string, profession: string) => Promise<LocalSearchResponse>;
+  onSearch: (city: string, profession: string, range: DateRange) => Promise<LocalSearchResponse>;
   onSave: (city: string, profession: string, ids: string[]) => Promise<SaveResult>;
 }) {
   const [city, setCity] = useState(prefill?.city ?? 'Gaziantep');
   const [profession, setProfession] = useState(prefill?.profession ?? '');
+  const [range, setRange] = useState<DateRange>('all');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [result, setResult] = useState<LocalSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,9 +45,13 @@ export function SearchScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.nonce]);
 
-  async function runSearch(fresh: boolean, override?: { city?: string; profession?: string }) {
+  async function runSearch(
+    fresh: boolean,
+    override?: { city?: string; profession?: string; range?: DateRange },
+  ) {
     const cityValue = (override?.city ?? city).trim();
     const trimmed = (override?.profession ?? profession).trim();
+    const rangeValue = override?.range ?? range;
     if (!cityValue) {
       setError('Önce bir şehir seç.');
       return;
@@ -58,13 +64,24 @@ export function SearchScreen({
     setLoading(true);
     setError(null);
     try {
-      const data = await onSearch(cityValue, trimmed);
+      const data = await onSearch(cityValue, trimmed, rangeValue);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setResult(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function changeRange(next: DateRange) {
+    setRange(next);
+    if (result) {
+      void runSearch(false, {
+        city: result.city,
+        profession: result.profession,
+        range: next,
+      });
     }
   }
 
@@ -79,7 +96,7 @@ export function SearchScreen({
       const saved = await onSave(
         result.city,
         result.profession,
-        result.items.map((item) => item.id),
+        result.allIds.length > 0 ? result.allIds : result.items.map((item) => item.id),
       );
       Alert.alert('Arama kaydedildi', saved.message);
     } catch (err) {
@@ -133,9 +150,34 @@ export function SearchScreen({
           loading={loading}
         />
         <Text style={styles.hint}>
-          Arama doğrudan telefonundan yapılır; sunucu gerekmez. Sonuçlar 5 dakika önbelleklenir.
+          Derin arama: ilan siteleri + Google News + Instagram/Facebook/X. Sonuçlar 5 dakika
+          önbelleklenir.
         </Text>
       </Card>
+
+      <View style={{ gap: 6 }}>
+        <Text style={styles.label}>Tarih aralığı</Text>
+        <View style={styles.rangeRow}>
+          {DATE_RANGES.map((option) => {
+            const active = range === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => changeRange(option.key)}
+                style={({ pressed }) => [
+                  styles.rangeChip,
+                  active && styles.rangeChipActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.rangeText, active && styles.rangeTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
       {error ? <ErrorBanner message={error} onRetry={() => void runSearch(true)} /> : null}
 
@@ -248,7 +290,8 @@ export function SearchScreen({
 
           <Text style={styles.disclaimer}>
             İŞKUR sonuçları meslek bazında “açık iş sayısı”dır; bireysel ilan kaydı değildir. Diğer
-            sonuçlar orijinal siteye yönlendirir.
+            sonuçlar orijinal siteye yönlendirir. Sosyal medya ve haber sonuçlarında tarih yaklaşık
+            olabilir.
           </Text>
         </>
       ) : null}
@@ -285,6 +328,21 @@ const styles = StyleSheet.create({
   selectorText: { flex: 1, color: theme.colors.text, fontSize: 15, fontWeight: '600' },
   selectorChevron: { color: theme.colors.textDim, fontSize: 18 },
   hint: { color: theme.colors.textDim, fontSize: 11, lineHeight: 16 },
+  rangeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  rangeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+  },
+  rangeChipActive: {
+    backgroundColor: theme.colors.accentSoft,
+    borderColor: theme.colors.accent,
+  },
+  rangeText: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '700' },
+  rangeTextActive: { color: theme.colors.accent },
   loadingCard: {
     flexDirection: 'row',
     alignItems: 'center',

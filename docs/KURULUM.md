@@ -1,6 +1,6 @@
-> **Sürüm 0.2.0 notu:** Bu klasördeki hazır APK **sunucusuz** çalışır. Aşağıdaki sunucu kurulumu
+> **Sürüm 0.3.0 notu:** Bu klasördeki hazır APK **sunucusuz** çalışır. Aşağıdaki sunucu kurulumu
 > yalnızca **opsiyonel merkezi mod** içindir; normal kullanımda gerekmez.
-> Hazır APK: `D:\Projeler\IsBul\build\isbul-0.2.0-sunucusuz.apk`
+> Hazır APK: `D:\Projeler\IsBul\build\isbul-0.3.0-derin-arama.apk`
 
 # Kurulum ve APK Üretimi
 

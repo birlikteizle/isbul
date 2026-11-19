@@ -121,11 +121,13 @@ export function SettingsScreen({
 
       <SectionTitle>Kaynaklar</SectionTitle>
       <Card style={{ gap: 6 }}>
-        <Text style={styles.help}>Kariyer.net · Eleman.net · İŞKUR · Kariyer Kapısı</Text>
+        <Text style={styles.help}>
+          Kariyer.net · Eleman.net · İŞKUR · Kariyer Kapısı · Google News · Instagram · Facebook
+        </Text>
         <Text style={styles.helpDim}>
-          İŞKUR bazı mobil operatörlerde site koruması nedeniyle yanıt vermeyebilir. Kariyer.net ve
-          Eleman.net doğrudan telefon IP'siyle çalışır. SecretCV'nin bot koruması nedeniyle
-          kullanılmıyor.
+          Derin arama Google News ve DuckDuckGo + Brave üzerinden yapılır. İŞKUR bazı mobil
+          operatörlerde site koruması nedeniyle yanıt vermeyebilir. SecretCV'nin bot koruması
+          nedeniyle kullanılmıyor.
         </Text>
       </Card>
 
@@ -147,7 +149,7 @@ export function SettingsScreen({
         />
       </Card>
 
-      <Text style={styles.version}>İşBul 0.2.0 · sunucusuz telefon modu</Text>
+      <Text style={styles.version}>İşBul 0.3.0 · derin arama + tarih filtresi</Text>
     </Screen>
   );
 }

@@ -17,7 +17,7 @@ export interface LocalCheckSummary {
 
 async function performCheck(scheduleNotifications: boolean): Promise<LocalCheckSummary> {
   const state = await loadLocalState();
-  const active = state.searches.filter((search) => search.active === 1).slice(0, 5);
+  const active = state.searches.filter((search) => search.active === 1).slice(0, 3);
 
   if (active.length === 0) {
     return { ok: true, newCount: 0, checked: 0, skipped: true, errors: [] };
@@ -26,9 +26,14 @@ async function performCheck(scheduleNotifications: boolean): Promise<LocalCheckS
   const results: CheckResult[] = [];
   const errors: string[] = [];
 
-  for (const search of active) {
+  for (const [index, search] of active.entries()) {
     try {
-      const response = await runLocalSearch(search.city, search.profession, { fresh: true });
+      const response = await runLocalSearch(search.city, search.profession, {
+        fresh: true,
+        range: 'all',
+        // Sosyal medya arama motorları hız sınırına takılmasın diye her turda yalnızca ilk arama.
+        skipSocial: index > 0,
+      });
       results.push({
         searchId: search.id,
         items: response.items.map((item) => ({

@@ -1,4 +1,4 @@
-> **Sürüm 0.2.0 notu:** Hazır APK sunucusuz çalışır; bu belge yalnızca **opsiyonel merkezi sunucu
+> **Sürüm 0.3.0 notu:** Hazır APK sunucusuz çalışır; bu belge yalnızca **opsiyonel merkezi sunucu
 > modu** içindir.
 
 # Sunucuyu Yayına Alma

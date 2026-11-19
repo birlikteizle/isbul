@@ -9,11 +9,11 @@ telefonundan** tarar, sonuçları tek listede toplar ve yeni ilan çıktığınd
 ## 📱 APK
 
 ```
-D:\Projeler\IsBul\build\isbul-0.2.0-sunucusuz.apk
+D:\Projeler\IsBul\build\isbul-0.3.0-derin-arama.apk
 ```
 
 - 20.8 MB · Android 7+ · arm64-v8a · imzalı, kurulabilir
-- Paket: `com.isbul.app` · sürüm 0.2.0 (versionCode 2)
+- Paket: `com.isbul.app` · sürüm 0.3.0 (versionCode 3)
 
 **Kurulum:** Dosyayı telefona kopyala → aç → “bilinmeyen kaynaklara izin ver” → kur → bildirim
 iznini ver.
@@ -24,7 +24,8 @@ iznini ver.
 ┌──────────────────────────── TELEFON ────────────────────────────┐
 │  Ara ekranı                                                     │
 │    └─ Kariyer.net / Eleman.net / İŞKUR / Kariyer Kapısı         │
-│         (doğrudan HTTPS isteği, sunucu yok)                     │
+│       Google News / Instagram-Facebook (arama motoru)           │
+│       (doğrudan HTTPS isteği, sunucu yok)                       │
 │                                                                 │
 │  Kayıtlı arama (AsyncStorage)                                   │
 │    └─ görülen ilan kimlikleri                                   │
@@ -44,6 +45,8 @@ iznini ver.
 ## Özellikler
 
 - 🔎 Çok kaynaklı arama + tekilleştirme
+- 🌐 **Derin arama:** Google News haberleri + Instagram/Facebook (arama motoru üzerinden)
+- 📅 **Tarih filtresi:** son 24 saat, 1 hafta, 2 hafta, 1 ay
 - 📌 Sınırsız kayıtlı arama (telefonda)
 - 🔔 Uygulama kapalıyken yerel bildirim
 - 🔋 Pil optimizasyonundan muaf tutma önerisi
@@ -58,6 +61,8 @@ iznini ver.
 | Eleman.net | ✅ | `sehir={plaka}` + `aranan` |
 | İŞKUR | ⚠️ | İlk istek çoğu zaman geçer; site koruması tekrar denemelerde engelleyebilir |
 | Kariyer Kapısı | ✅ | Resmî RSS |
+| Google News | ✅ | Haber siteleri; RSS ile |
+| Sosyal Medya | ⚠️ | Instagram/Facebook; DuckDuckGo + Brave, hız sınırı olabilir |
 | SecretCV | ❌ | Bot koruması; kullanılmıyor |
 
 > İŞKUR sonuçları meslek bazında “açık iş sayısı”dır (bireysel ilan kaydı değil).
@@ -67,8 +72,9 @@ iznini ver.
 1. APK'yı kur, bildirim iznini ver.
 2. **Ara** → şehir seç (örn. Gaziantep) → meslek yaz (örn. satış) → **İlanları ara**.
 3. Sonuçları görünce **“Bu aramayı kaydet ve bildirim al”**.
-4. Kaydederken o anki ilanlar “görüldü” işaretlenir; sadece sonradan çıkanlar bildirilir.
-5. Telefon ayarlarında **İşBul → Pil → Kısıtlanmamış** yaparsan 15 dakikalık kontrol daha düzenli
+4. Üstteki **Tarih aralığı** çipleriyle son 24 saat / 1 hafta / 2 hafta / 1 ay arasında geçiş yap.
+5. Kaydederken o anki tüm ilanlar “görüldü” işaretlenir; sadece sonradan çıkanlar bildirilir.
+6. Telefon ayarlarında **İşBul → Pil → Kısıtlanmamış** yaparsan 15 dakikalık kontrol daha düzenli
    çalışır.
 
 **Ayarlar → Şimdi kontrol et** ile elle de tarama başlatabilirsin.
@@ -82,6 +88,10 @@ iznini ver.
   eder.
 - **Kariyer.net hız limiti:** Çok sık arama yapılırsa geçici 403 olabilir; uygulama bir kez tekrar
   dener.
+- **Sosyal medya:** Instagram/Facebook doğrudan resmî API ile değil, DuckDuckGo ve Brave arama
+  sonuçları üzerinden taranır. Platformlar otomatik sorguları zaman zaman 429/202 ile sınırlar;
+  uygulama bunu uyarı olarak gösterir. Birkaç dakika sonra veya mobil veriyle tekrar dene. Meta'nın
+  resmî API'si uygulama hesabı/izin gerektirir.
 - **APK mimarisi:** arm64. Çok eski 32-bit telefon için `armeabi-v7a` ile yeniden derlenebilir.
 
 ## Geliştirme / yeniden derleme
