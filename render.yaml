@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: isbul-api
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8787
+      - key: DATA_DIR
+        value: /var/data
+      - key: SCAN_INTERVAL_MS
+        value: 300000
+      - key: SEARCH_CACHE_MS
+        value: 600000
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: SCAN_TOKEN
+        generateValue: true
+    disk:
+      name: isbul-data
+      mountPath: /var/data
+      sizeGB: 1

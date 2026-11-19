@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "İşBul",
+    "slug": "isbul",
+    "scheme": "isbul",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#080B12",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#080B12"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.isbul.app"
+    },
+    "android": {
+      "package": "com.isbul.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#080B12",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#F5A524"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://10.0.2.2:8787"
+    }
+  }
+}
