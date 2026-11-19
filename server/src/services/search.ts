@@ -135,6 +135,15 @@ export async function runSearch(
     ok: !result.warning || !/hata|HTTP|geçersiz/i.test(result.warning),
   }));
 
+  // Çekirdek kaynaklardan biri ağ/HTTP hatası verdiyse sonucu önbelleğe alma:
+  // aksi halde 10 dakika boyunca eksik liste gösterilir.
+  const hardFailure = results.some(
+    (result) =>
+      result.source !== 'secretcv' &&
+      !!result.warning &&
+      /hata|HTTP|failed|timeout|Command failed/i.test(result.warning),
+  );
+
   const payload: SearchResponse = {
     city: city.name,
     profession,
@@ -145,7 +154,7 @@ export async function runSearch(
     fetchedAt: new Date().toISOString(),
   };
 
-  cache.set(key, { at: Date.now(), payload });
+  if (!hardFailure) cache.set(key, { at: Date.now(), payload });
   return payload;
 }
 
